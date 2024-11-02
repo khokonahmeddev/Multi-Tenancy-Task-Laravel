@@ -1,33 +1,48 @@
-name: Deploy to DEV Server
+name: Deploy Laravel to AWS
 
 on:
   push:
     branches:
-      - main
+      - main  # Change this to the branch you want to deploy from
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      - name: Set up SSH key
-        run: |
-          echo "${{ secrets.EC2_SSH_KEY }}" > private_key
-          chmod 600 private_key
+    - name: Set up PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'  # Change this to your PHP version
+        extensions: mbstring, xml, bcmath, curl, openssl
+        coverage: none
 
-      - name: Deploy to server
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}  # Use the SSH key stored in GitHub secrets
-          script: |
-            cd /var/www/maileditor/html
-            git pull origin main  # Ensure you're pulling the latest code
-            composer install
-            php artisan migrate --force  # Run migrations, if necessary
-    
-          
+    - name: Install Composer dependencies
+      run: composer install --no-dev --optimize-autoloader
+
+    - name: Run tests
+      run: php artisan test
+
+    - name: Prepare deployment
+      run: |
+        echo "${{ secrets.EC2_SSH_KEY }}" > private_key
+        chmod 600 private_key
+
+    - name: Deploy to AWS EC2
+      run: |
+        ssh -i private_key -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'EOF'
+          cd /path/to/your/laravel/project  # Change this to your project path
+          git pull origin main  # Change this if using a different branch
+          composer install --no-dev --optimize-autoloader
+          php artisan migrate --force  # Run migrations
+          php artisan cache:clear
+          php artisan config:cache
+          php artisan route:cache
+          exit
+        EOF
+
+    - name: Clean up
+      run: rm private_key
