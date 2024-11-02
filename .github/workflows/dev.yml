@@ -38,9 +38,6 @@ jobs:
           git pull origin main  # Change this if using a different branch
           composer install --no-dev --optimize-autoloader
           php artisan migrate --force  # Run migrations
-          php artisan cache:clear
-          php artisan config:cache
-          php artisan route:cache
           exit
         EOF
 
